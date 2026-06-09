@@ -21,6 +21,7 @@ router.post("/register", async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      role: "user", // ✅ IMPORTANT FIX
     });
 
     await user.save();
@@ -46,15 +47,23 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-   const token = jwt.sign(
-  {
-    id: user._id,
-    role: user.role,   // 👈 ADD THIS
-  },
-  process.env.JWT_SECRET
-);
+    const token = jwt.sign(
+      {
+        id: user._id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET
+    );
 
-    res.json({ token, user });
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }

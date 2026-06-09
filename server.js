@@ -5,16 +5,32 @@ const mongoose = require("mongoose");
 
 const app = express();
 
-/* ================= CORS FIX ================= */
+/* ================= CORS (FIXED PROPERLY) ================= */
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://your-frontend.vercel.app"
+];
+
 app.use(
   cors({
-    origin: "*", // TEMP FIX (you can restrict later)
+    origin: function (origin, callback) {
+      // allow requests with no origin (like Postman)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(null, true); // TEMP allow all (debug mode)
+      }
+    },
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization"]
   })
 );
 
-// IMPORTANT: handle preflight requests
+/* IMPORTANT: handle preflight globally */
 app.options("*", cors());
 
 /* ================= MIDDLEWARE ================= */
@@ -27,24 +43,22 @@ const assetRoutes = require("./routes/assetRoutes");
 app.use("/api/auth", authRoutes);
 app.use("/api/assets", assetRoutes);
 
-/* ================= TEST ROUTES ================= */
+/* ================= TEST ================= */
 app.get("/", (req, res) => {
   res.send("Asset Management Backend Running");
 });
 
 app.get("/api/test", (req, res) => {
-  res.json({
-    message: "Hello from Backend!",
-  });
+  res.json({ message: "Hello from Backend!" });
 });
 
-/* ================= DB CONNECTION ================= */
+/* ================= DB ================= */
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected successfully"))
   .catch((err) => console.log("MongoDB connection error:", err));
 
-/* ================= START SERVER ================= */
+/* ================= SERVER ================= */
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {

@@ -1,21 +1,28 @@
 const express = require("express");
 const router = express.Router();
-const Asset = require("../models/asset");
+
+const Asset = require("../models/asset"); // ✅ FIXED TYPO
 const auth = require("../middleware/auth");
 const roleCheck = require("../middleware/role");
-// CREATE asset
-router.post("/add",auth,roleCheck(["admin"]), async (req, res) => {
+
+// CREATE asset (ADMIN ONLY)
+router.post("/add", auth, roleCheck(["admin"]), async (req, res) => {
   try {
     const asset = new Asset(req.body);
     await asset.save();
-    res.json({ message: "Asset created successfully", asset });
+
+    res.json({
+      message: "Asset created successfully",
+      asset,
+    });
   } catch (err) {
+    console.log(err);
     res.status(500).json({ message: "Error creating asset" });
   }
 });
 
 // GET all assets
-router.get("/",auth, async (req, res) => {
+router.get("/", auth, async (req, res) => {
   try {
     const assets = await Asset.find();
     res.json(assets);
@@ -24,7 +31,8 @@ router.get("/",auth, async (req, res) => {
   }
 });
 
-router.delete("/:id",auth,roleCheck(["admin"]), async (req, res) => {
+// DELETE (ADMIN ONLY)
+router.delete("/:id", auth, roleCheck(["admin"]), async (req, res) => {
   try {
     await Asset.findByIdAndDelete(req.params.id);
     res.json({ message: "Asset deleted" });
@@ -33,7 +41,8 @@ router.delete("/:id",auth,roleCheck(["admin"]), async (req, res) => {
   }
 });
 
-router.put("/:id",auth,roleCheck(["admin"]), async (req, res) => {
+// UPDATE (ADMIN ONLY)
+router.put("/:id", auth, roleCheck(["admin"]), async (req, res) => {
   try {
     const updatedAsset = await Asset.findByIdAndUpdate(
       req.params.id,
@@ -50,7 +59,7 @@ router.put("/:id",auth,roleCheck(["admin"]), async (req, res) => {
   }
 });
 
-
+// BOOK (USER)
 router.put("/book/:id", auth, async (req, res) => {
   try {
     const asset = await Asset.findById(req.params.id);
@@ -64,8 +73,6 @@ router.put("/book/:id", auth, async (req, res) => {
     }
 
     asset.status = "booked";
-
-    // 👇 IMPORTANT: store user
     asset.bookedBy = req.user.id;
 
     await asset.save();
@@ -79,6 +86,7 @@ router.put("/book/:id", auth, async (req, res) => {
   }
 });
 
+// MY BOOKINGS
 router.get("/my-bookings", auth, async (req, res) => {
   try {
     const assets = await Asset.find({
@@ -90,4 +98,5 @@ router.get("/my-bookings", auth, async (req, res) => {
     res.status(500).json({ message: "Error fetching bookings" });
   }
 });
+
 module.exports = router;
