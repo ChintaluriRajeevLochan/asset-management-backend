@@ -1,102 +1,93 @@
 const express = require("express");
 const router = express.Router();
 
-const Asset = require("../models/asset"); // ✅ FIXED TYPO
+const Asset = require("../models/Asset");
 const auth = require("../middleware/auth");
-const roleCheck = require("../middleware/role");
+const role = require("../middleware/role");
 
-// CREATE asset (ADMIN ONLY)
-router.post("/add", auth, roleCheck(["admin"]), async (req, res) => {
+/* ================= CREATE ASSET (ADMIN) ================= */
+router.post("/add", auth, role(["admin"]), async (req, res) => {
   try {
-    const asset = new Asset(req.body);
+    const asset = new Asset({
+      ...req.body,
+      totalQuantity: req.body.quantity,  // ✅ add this line
+    });
     await asset.save();
 
-    res.json({
-      message: "Asset created successfully",
-      asset,
-    });
+    res.json({ message: "Asset created", asset });
   } catch (err) {
-    console.log(err);
     res.status(500).json({ message: "Error creating asset" });
   }
 });
 
-// GET all assets
+/* ================= MY BOOKINGS ================= */
+router.get("/my-bookings", auth, async (req, res) => {
+  const assets = await Asset.find({ bookedBy: req.user.id });
+  res.json(assets);
+});
+/* ================= GET ALL ================= */
 router.get("/", auth, async (req, res) => {
-  try {
-    const assets = await Asset.find();
-    res.json(assets);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching assets" });
-  }
+  const assets = await Asset.find();
+  res.json(assets);
 });
 
-// DELETE (ADMIN ONLY)
-router.delete("/:id", auth, roleCheck(["admin"]), async (req, res) => {
-  try {
-    await Asset.findByIdAndDelete(req.params.id);
-    res.json({ message: "Asset deleted" });
-  } catch (err) {
-    res.status(500).json({ message: "Error deleting asset" });
-  }
+/* ================= DELETE ================= */
+router.delete("/:id", auth, role(["admin"]), async (req, res) => {
+  await Asset.findByIdAndDelete(req.params.id);
+  res.json({ message: "Deleted" });
 });
 
-// UPDATE (ADMIN ONLY)
-router.put("/:id", auth, roleCheck(["admin"]), async (req, res) => {
+/* ================= BOOK ASSET (USER) ================= */
+/* ================= BOOK ASSET (USER) ================= */
+router.put("/book/:id", auth, async (req, res) => {
   try {
-    const updatedAsset = await Asset.findByIdAndUpdate(
+    const { purpose, startDate, endDate, quantity } = req.body;
+
+    const asset = await Asset.findById(req.params.id);
+    if (!asset) return res.status(404).json({ message: "Not found" });
+
+    if (asset.status === "booked" || asset.quantity < 1)
+      return res.status(400).json({ message: "Already booked" });
+
+    const qty = parseInt(quantity);
+    if (!qty || qty <= 0)
+      return res.status(400).json({ message: "Invalid quantity" });
+    if (qty > asset.quantity)
+      return res.status(400).json({ message: `Only ${asset.quantity} available` });
+    if (!asset.totalQuantity) asset.totalQuantity = asset.quantity; 
+    asset.quantity -= qty;
+    if (asset.quantity === 0) asset.status = "booked";
+
+    asset.bookedBy = req.user.id;
+    asset.purpose = purpose;
+    asset.startDate = startDate;
+    asset.endDate = endDate;
+
+    await asset.save();
+    res.json({ message: "Booked successfully", asset });
+  } catch (err) {
+    res.status(500).json({ message: "Booking failed" });
+  }
+});
+router.put("/:id", auth, role(["admin"]), async (req, res) => {
+  try {
+    // if status is being set to available, clear bookedBy
+    if (req.body.status === "available") {
+      req.body.bookedBy = null;
+    }
+
+    const updated = await Asset.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true }
     );
 
-    res.json({
-      message: "Asset updated successfully",
-      asset: updatedAsset,
-    });
+    res.json({ message: "Updated", asset: updated });
   } catch (err) {
     res.status(500).json({ message: "Error updating asset" });
   }
 });
 
-// BOOK (USER)
-router.put("/book/:id", auth, async (req, res) => {
-  try {
-    const asset = await Asset.findById(req.params.id);
 
-    if (!asset) {
-      return res.status(404).json({ message: "Asset not found" });
-    }
-
-    if (asset.status === "booked") {
-      return res.status(400).json({ message: "Already booked" });
-    }
-
-    asset.status = "booked";
-    asset.bookedBy = req.user.id;
-
-    await asset.save();
-
-    res.json({
-      message: "Asset booked successfully",
-      asset,
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Booking failed" });
-  }
-});
-
-// MY BOOKINGS
-router.get("/my-bookings", auth, async (req, res) => {
-  try {
-    const assets = await Asset.find({
-      bookedBy: req.user.id,
-    });
-
-    res.json(assets);
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching bookings" });
-  }
-});
 
 module.exports = router;
